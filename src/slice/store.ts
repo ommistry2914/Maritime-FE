@@ -10,7 +10,7 @@ export const store = configureStore({
       serializableCheck: {
         ignoredActions: [
           "auth/login/fulfilled",
-          "auth/refreshTokens/fulfilled",
+          "auth/fetchCurrentUser/fulfilled",
         ],
       },
     }),

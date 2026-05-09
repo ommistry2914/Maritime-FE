@@ -6,6 +6,7 @@ export interface RegisterCredentials {
   lastName: string;
   email: string;
   password: string;
+  role?: "superAdmin" | "admin" | "crew" | "user";
 }
 export interface LoginCredentials {
   email: string;
@@ -13,17 +14,14 @@ export interface LoginCredentials {
 }
 
 export interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
   user: User;
 }
 
 // Redux State
 export interface AuthState {
   user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
+  initialized: boolean;
   loading: boolean;
   error: string | null;
 }

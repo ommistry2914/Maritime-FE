@@ -21,7 +21,7 @@ export default function Layout() {
             orientation="vertical"
             className="mr-2 data-[orientation=vertical]:h-4"
           />
-          <h1>
+          <h1 className="font-medium">
             {currentRoute ? currentRoute.title : ""}
           </h1>
         </header>

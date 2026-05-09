@@ -1,23 +1,43 @@
 export const routes = [
     {
-        title:"Home",
-        url: "/",
-        allowedRoles: ["superAdmin", "user"],
-    },
-    {
-        title:"Setting",
-        url: "/setting",
-        allowedRoles: ["superAdmin", "user"],
-    },
-    {
-        title:"Super Admin Setting",
-        url: "/superAdminSetting",
+        title:"Admin Management",
+        url: "/admin-management",
         allowedRoles: ["superAdmin"],
     },
     {
-        title:"User Setting",
-        url: "/userSetting",
-        allowedRoles: ["user"],
+        title:"Dashboard",
+        url: "/adminDashboard",
+        allowedRoles: ["admin"],
+    },
+    {
+        title:"Crew Management",
+        url: "/admin-management",
+        allowedRoles: ["admin"],
+    },
+    {
+        title:"Crew Dashboard",
+        url: "/userDashboard",
+        allowedRoles: ["crew", "user"],
+    },
+    {
+        title:"Fleet Registry",
+        url: "/ships",
+        allowedRoles: ["admin"],
+    },
+    {
+        title:"Maintenance",
+        url: "/maintenance",
+        allowedRoles: ["admin", "crew", "user"],
+    },
+    {
+        title:"Safety Drills",
+        url: "/drills",
+        allowedRoles: ["admin", "crew", "user"],
+    },
+    {
+        title:"Settings",
+        url: "/setting",
+        allowedRoles: ["superAdmin", "admin", "crew", "user"],
     }
 ]
 
