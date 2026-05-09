@@ -24,10 +24,15 @@ const normalizeDrill = (drill: SafetyDrill): SafetyDrill => ({
 });
 
 export const operationsApi = {
-  ships: async () => data(await axiosInstance.get<ApiResponse<Ship[]>>("/ships")),
+  // ── Ships ──────────────────────────────────────────────────────
+  ships: async () =>
+    data(await axiosInstance.get<ApiResponse<Ship[]>>("/ships")),
   createShip: async (payload: Partial<Ship>) =>
     data(await axiosInstance.post<ApiResponse<Ship>>("/ships", payload)),
+  updateShip: async (id: string, payload: Partial<Ship>) =>
+    data(await axiosInstance.patch<ApiResponse<Ship>>(`/ships/${id}`, payload)),
 
+  // ── Users / Crew ───────────────────────────────────────────────
   crew: async () =>
     data(await axiosInstance.get<ApiResponse<User[]>>("/users", { params: { role: "crew" } })).map(normalizeUser),
   users: async (params?: Record<string, string>) =>
@@ -35,20 +40,27 @@ export const operationsApi = {
   createUser: async (payload: Record<string, unknown>) =>
     normalizeUser(data(await axiosInstance.post<ApiResponse<User>>("/users", payload))),
 
+  // ── Maintenance ────────────────────────────────────────────────
   maintenance: async (params?: Record<string, string>) =>
     data(await axiosInstance.get<ApiResponse<MaintenanceTask[]>>("/maintenance", { params })).map(normalizeTask),
   createMaintenance: async (payload: Record<string, unknown>) =>
     normalizeTask(data(await axiosInstance.post<ApiResponse<MaintenanceTask>>("/maintenance", payload))),
+  updateMaintenance: async (id: string, payload: Record<string, unknown>) =>
+    normalizeTask(data(await axiosInstance.patch<ApiResponse<MaintenanceTask>>(`/maintenance/${id}`, payload))),
   updateMaintenanceStatus: async (id: string, payload: { status: string; note?: string }) =>
     normalizeTask(data(await axiosInstance.patch<ApiResponse<MaintenanceTask>>(`/maintenance/${id}/status`, payload))),
 
+  // ── Drills ─────────────────────────────────────────────────────
   drills: async (params?: Record<string, string>) =>
     data(await axiosInstance.get<ApiResponse<SafetyDrill[]>>("/drills", { params })).map(normalizeDrill),
   createDrill: async (payload: Record<string, unknown>) =>
     normalizeDrill(data(await axiosInstance.post<ApiResponse<SafetyDrill>>("/drills", payload))),
+  updateDrill: async (id: string, payload: Record<string, unknown>) =>
+    normalizeDrill(data(await axiosInstance.patch<ApiResponse<SafetyDrill>>(`/drills/${id}`, payload))),
   markDrill: async (id: string, payload: { attended: boolean; completed: boolean; note?: string }) =>
     normalizeDrill(data(await axiosInstance.patch<ApiResponse<SafetyDrill>>(`/drills/${id}/participation`, payload))),
 
+  // ── Compliance ─────────────────────────────────────────────────
   compliance: async () =>
     data(await axiosInstance.get<ApiResponse<ComplianceSummary>>("/compliance/summary")),
 };
