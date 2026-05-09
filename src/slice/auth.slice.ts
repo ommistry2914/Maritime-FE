@@ -1,72 +1,63 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import type { PayloadAction } from "@reduxjs/toolkit"
+import type { PayloadAction } from "@reduxjs/toolkit";
 import type { RootState } from "./store";
 import axiosInstance from "@/api/axiosInstance";
 import type { AuthState, LoginCredentials, LoginResponse, RegisterCredentials } from "@/types/auth.types";
 import type { ApiResponse } from "@/types/api.types";
 
-export const register = createAsyncThunk<
-  LoginResponse,
-  RegisterCredentials,
-  { rejectValue: string }
->("auth/register", async (data, { rejectWithValue }) => {
-  try {
-    const response = await axiosInstance.post<ApiResponse<LoginResponse>>(
-      "/auth/register",
-      data
-    );
+// ── Async Thunks ─────────────────────────────────────────────────
 
-    return response.data.data;
-  } catch (error: any) {
-    return rejectWithValue(
-      error.response?.data?.message || "Registration failed. Please try again."
-    );
+export const register = createAsyncThunk<LoginResponse, RegisterCredentials, { rejectValue: string }>(
+  "auth/register",
+  async (data, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post<ApiResponse<LoginResponse>>("/auth/register", data);
+      return response.data.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || "Registration failed. Please try again.");
+    }
   }
-});
+);
 
-export const login = createAsyncThunk<
-  LoginResponse,
-  LoginCredentials,
-  { rejectValue: string }
->("auth/login", async (credentials, { rejectWithValue }) => {
-  try {
-    const response = await axiosInstance.post<ApiResponse<LoginResponse>>(
-      "/auth/login",
-      credentials
-    );
-
-    return response.data.data;
-  } catch (error: any) {
-    return rejectWithValue(
-      error.response?.data?.message || "Login failed. Please try again."
-    );
+export const login = createAsyncThunk<LoginResponse, LoginCredentials, { rejectValue: string }>(
+  "auth/login",
+  async (credentials, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post<ApiResponse<LoginResponse>>("/auth/login", credentials);
+      return response.data.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || "Login failed. Please try again.");
+    }
   }
-});
+);
 
-export const fetchCurrentUser = createAsyncThunk<
-  LoginResponse,
-  void,
-  { rejectValue: string }
->("auth/fetchCurrentUser", async (_, { rejectWithValue }) => {
-  try {
-    const response = await axiosInstance.get<ApiResponse<LoginResponse>>(
-      "/auth/me",
-      { skipAuthRefresh: true }
-    );
-
-    return response.data.data;
-  } catch (error: any) {
-    return rejectWithValue(
-      error.response?.data?.message || "Not authenticated"
-    );
+export const fetchCurrentUser = createAsyncThunk<LoginResponse, void, { rejectValue: string }>(
+  "auth/fetchCurrentUser",
+  async (_, { rejectWithValue }) => {
+    try {
+      // skipAuthRefresh prevents the interceptor from triggering another refresh
+      // when /auth/me itself returns 401 (user not logged in at all)
+      const response = await axiosInstance.get<ApiResponse<LoginResponse>>("/auth/me", {
+        skipAuthRefresh: true,
+      } as any);
+      return response.data.data;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || "Not authenticated");
+    }
   }
-});
+);
 
 export const logout = createAsyncThunk("auth/logout", async () => {
-  await axiosInstance.post("/auth/logout", {});
+  try {
+    // Call logout endpoint — ignore errors (cookie will be cleared server-side)
+    await axiosInstance.post("/auth/logout", {}, { skipAuthRefresh: true } as any);
+  } catch {
+    // swallow — we still want to clear local state
+  }
   return true;
 });
 
+// ── Initial State ────────────────────────────────────────────────
 
 const initialState: AuthState = {
   user: null,
@@ -76,6 +67,7 @@ const initialState: AuthState = {
   error: null,
 };
 
+// ── Slice ────────────────────────────────────────────────────────
 
 const authSlice = createSlice({
   name: "auth",
@@ -84,15 +76,22 @@ const authSlice = createSlice({
     resetError: (state) => {
       state.error = null;
     },
+    /**
+     * forceLogout — called by the axios interceptor when refresh fails.
+     * Clears auth state WITHOUT hitting the network, so no new requests fire.
+     */
+    forceLogout: (state) => {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.initialized = true;
+      state.loading = false;
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
-    
-      .addCase(register.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-
+      // register
+      .addCase(register.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(register.fulfilled, (state, action: PayloadAction<LoginResponse>) => {
         state.loading = false;
         state.user = action.payload.user;
@@ -104,10 +103,8 @@ const authSlice = createSlice({
         state.error = action.payload || "Registration failed";
       })
 
-      .addCase(login.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
+      // login
+      .addCase(login.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(login.fulfilled, (state, action: PayloadAction<LoginResponse>) => {
         state.loading = false;
         state.user = action.payload.user;
@@ -119,30 +116,38 @@ const authSlice = createSlice({
         state.error = action.payload || "Login failed";
       })
 
-      .addCase(
-        fetchCurrentUser.fulfilled,
-        (state, action: PayloadAction<LoginResponse>) => {
-          state.user = action.payload.user;
-          state.isAuthenticated = true;
-          state.initialized = true;
-        }
-      )
+      // fetchCurrentUser
+      .addCase(fetchCurrentUser.fulfilled, (state, action: PayloadAction<LoginResponse>) => {
+        state.user = action.payload.user;
+        state.isAuthenticated = true;
+        state.initialized = true;
+      })
       .addCase(fetchCurrentUser.rejected, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.initialized = true;
       })
 
+      // logout
+      .addCase(logout.pending, (state) => { state.loading = true; })
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.initialized = true;
+        state.loading = false;
+      })
+      .addCase(logout.rejected, (state) => {
+        // Even if the API call fails, clear the local state
+        state.user = null;
+        state.isAuthenticated = false;
+        state.initialized = true;
+        state.loading = false;
       });
   },
 });
 
-export const { resetError } = authSlice.actions;
+export const { resetError, forceLogout } = authSlice.actions;
 export default authSlice.reducer;
 
-// Selector
+// Selectors
 export const selectAuth = (state: RootState) => state.auth;
