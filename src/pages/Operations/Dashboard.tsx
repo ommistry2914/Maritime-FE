@@ -59,7 +59,21 @@ export default function Dashboard() {
             <Bar label="Maintenance completion" value={data.compliance.maintenance} />
             <Bar label="Drill participation" value={data.compliance.drills} />
             <div className={`rounded-md border p-4 text-sm ${data.risks.status === "atRisk" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
-              {data.risks.status === "atRisk" ? "Risk detected: overdue maintenance or missed drills require action." : "Fleet compliance is currently within acceptable range."}
+              {data.risks.status === "atRisk" ? "Risk detected: overdue maintenance, late completions, or missed drills require action." : "Fleet compliance is currently within acceptable range."}
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="rounded-md border p-3">
+                <p className="text-muted-foreground">Overdue</p>
+                <p className="text-xl font-semibold">{data.risks.overdueMaintenance}</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-muted-foreground">Late</p>
+                <p className="text-xl font-semibold">{data.risks.lateCompletedMaintenance}</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="text-muted-foreground">Missed</p>
+                <p className="text-xl font-semibold">{data.risks.missedDrills}</p>
+              </div>
             </div>
           </CardContent>
         </Card>

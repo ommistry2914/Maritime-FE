@@ -14,10 +14,15 @@ export interface MaintenanceTask {
   _id: string;
   title: string;
   description?: string;
+  category: "engine" | "deck" | "electrical" | "hull" | "safetyEquipment" | "navigation" | "other";
+  component: string;
+  location?: string;
   ship: Ship;
   assignedTo: User;
   status: MaintenanceStatus;
   priority: "low" | "medium" | "high" | "critical";
+  estimatedHours?: number;
+  safetyCritical: boolean;
   dueDate: string;
   completedAt?: string;
   comments: Array<{
@@ -32,6 +37,10 @@ export interface SafetyDrill {
   title: string;
   drillType: "fire" | "evacuation" | "manOverboard" | "abandonShip" | "medical" | "other";
   ship: Ship;
+  location: string;
+  musterStation: string;
+  objective?: string;
+  durationMinutes: number;
   scheduledDate: string;
   status: "scheduled" | "completed" | "cancelled";
   participants: Array<{
@@ -49,6 +58,7 @@ export interface ComplianceSummary {
     drills: number;
     pendingMaintenance: number;
     overdueMaintenance: number;
+    lateCompletedMaintenance: number;
     completedMaintenance: number;
     completedDrills: number;
     missedDrills: number;
@@ -60,6 +70,7 @@ export interface ComplianceSummary {
   };
   risks: {
     overdueMaintenance: number;
+    lateCompletedMaintenance: number;
     missedDrills: number;
     status: "compliant" | "watch" | "atRisk";
   };
