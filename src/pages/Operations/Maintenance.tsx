@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAppSelector } from "@/slice/hook";
-import type { MaintenanceTask } from "@/types/operations.types";
+import type { MaintenanceTask, Ship } from "@/types/operations.types";
+import type { User } from "@/types/user.types";
 
 const emptyForm = { title: "", description: "", category: "engine", component: "", location: "", ship: "", assignedTo: "", dueDate: "", priority: "medium", estimatedHours: "", safetyCritical: false };
 
@@ -77,7 +78,7 @@ function ViewModal({ task, onClose }: { task: MaintenanceTask; onClose: () => vo
 }
 
 /* ── Edit Modal ── */
-function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTask; ships: any[]; crew: any[]; onClose: () => void; onSave: (id: string, payload: Record<string, unknown>) => void }) {
+function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTask; ships: Ship[]; crew: User[]; onClose: () => void; onSave: (id: string, payload: Record<string, unknown>) => void }) {
   const [form, setForm] = useState({
     title: task.title, description: task.description ?? "", category: task.category,
     component: task.component, location: task.location ?? "", ship: task.ship?._id ?? "",
@@ -100,7 +101,7 @@ function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTa
             <div><SL>Component *</SL><Input value={form.component} onChange={e => setForm({ ...form, component: e.target.value })} className="rounded-xl" /></div>
             <div>
               <SL>Category</SL>
-              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="maritime-select">
+              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value as MaintenanceTask["category"] })} className="maritime-select">
                 <option value="engine">Engine</option><option value="deck">Deck</option><option value="electrical">Electrical</option>
                 <option value="hull">Hull</option><option value="safetyEquipment">Safety Equipment</option><option value="navigation">Navigation</option><option value="other">Other</option>
               </select>
@@ -122,7 +123,7 @@ function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTa
             <div><SL>Due Date *</SL><Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="rounded-xl" /></div>
             <div>
               <SL>Priority</SL>
-              <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })} className="maritime-select">
+              <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value as MaintenanceTask["priority"] })} className="maritime-select">
                 <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
               </select>
             </div>

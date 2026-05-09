@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAppSelector } from "@/slice/hook";
-import type { SafetyDrill } from "@/types/operations.types";
+import type { SafetyDrill, Ship } from "@/types/operations.types";
+import type { User } from "@/types/user.types";
 
 const emptyForm = {
   title: "", drillType: "fire", ship: "", location: "",
@@ -96,7 +97,7 @@ function ViewModal({ drill, onClose }: { drill: SafetyDrill; onClose: () => void
 
 /* ── Edit Modal ─────────────────────────────────────────────────── */
 function EditModal({ drill, ships, crew, onClose, onSave }: {
-  drill: SafetyDrill; ships: any[]; crew: any[];
+  drill: SafetyDrill; ships: Ship[]; crew: User[];
   onClose: () => void; onSave: (id: string, payload: Record<string, unknown>) => void;
 }) {
   const [form, setForm] = useState({
@@ -140,7 +141,7 @@ function EditModal({ drill, ships, crew, onClose, onSave }: {
             <div><SLabel>Title *</SLabel><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="rounded-xl" /></div>
             <div>
               <SLabel>Drill Type</SLabel>
-              <select value={form.drillType} onChange={e => setForm({ ...form, drillType: e.target.value })} className="maritime-select">
+              <select value={form.drillType} onChange={e => setForm({ ...form, drillType: e.target.value as SafetyDrill["drillType"] })} className="maritime-select">
                 <option value="fire">🔥 Fire</option><option value="evacuation">🚨 Evacuation</option>
                 <option value="manOverboard">🌊 Man Overboard</option><option value="abandonShip">⛵ Abandon Ship</option>
                 <option value="medical">🏥 Medical</option><option value="other">📋 Other</option>
