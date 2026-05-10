@@ -53,10 +53,13 @@ export const fetchCurrentUser = createAsyncThunk<LoginResponse, void, { rejectVa
 export const logout = createAsyncThunk("auth/logout", async () => {
   try {
     // Call logout endpoint — ignore errors (cookie will be cleared server-side)
-    await axiosInstance.post("/auth/logout", {}, { skipAuthRefresh: true } as any);
+    const refreshToken = localStorage.getItem('refreshToken');
+    await axiosInstance.post("/auth/logout", { refreshToken }, { skipAuthRefresh: true } as any);
   } catch {
     // swallow — we still want to clear local state
   }
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
   return true;
 });
 
@@ -89,6 +92,8 @@ const authSlice = createSlice({
       state.initialized = true;
       state.loading = false;
       state.error = null;
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
     },
   },
   extraReducers: (builder) => {
@@ -100,6 +105,8 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.isAuthenticated = true;
         state.initialized = true;
+        if (action.payload.accessToken) localStorage.setItem("accessToken", action.payload.accessToken);
+        if (action.payload.refreshToken) localStorage.setItem("refreshToken", action.payload.refreshToken);
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
@@ -113,6 +120,8 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.isAuthenticated = true;
         state.initialized = true;
+        if (action.payload.accessToken) localStorage.setItem("accessToken", action.payload.accessToken);
+        if (action.payload.refreshToken) localStorage.setItem("refreshToken", action.payload.refreshToken);
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
@@ -124,6 +133,8 @@ const authSlice = createSlice({
         state.user = action.payload.user;
         state.isAuthenticated = true;
         state.initialized = true;
+        if (action.payload.accessToken) localStorage.setItem("accessToken", action.payload.accessToken);
+        if (action.payload.refreshToken) localStorage.setItem("refreshToken", action.payload.refreshToken);
       })
       .addCase(fetchCurrentUser.rejected, (state) => {
         state.user = null;

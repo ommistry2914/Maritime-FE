@@ -63,6 +63,18 @@ function handleSessionExpired(showToast = true, message = "Session expired. Plea
   }
 }
 
+// ── Request interceptor ──────────────────────────────────────────
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("accessToken");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // ── Response interceptor ─────────────────────────────────────────
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => response,
@@ -101,12 +113,23 @@ axiosInstance.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Call /auth/refresh — uses httpOnly cookie automatically
-        await axiosInstance.post(
+        const refreshToken = localStorage.getItem("refreshToken");
+        // Call /auth/refresh — sends refreshToken in body (and uses cookie fallback)
+        const response = await axiosInstance.post(
           "/auth/refresh",
-          {},
+          { refreshToken },
           { skipAuthRefresh: true } as any
         );
+
+        // Save new tokens
+        const { accessToken: newAccess, refreshToken: newRefresh } = response.data?.data || {};
+        if (newAccess) localStorage.setItem("accessToken", newAccess);
+        if (newRefresh) localStorage.setItem("refreshToken", newRefresh);
+
+        // Update the original request's Authorization header
+        if (newAccess && originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+        }
 
         // Refresh succeeded — retry all queued requests
         resolveQueue(true);
