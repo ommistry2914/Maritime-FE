@@ -10,6 +10,8 @@ import { operationsApi } from "@/api/operations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { FieldError } from "@/components/ui/FieldError";
+import { validateDrill, isValid, type DrillErrors } from "@/lib/validation";
 import { useAppSelector } from "@/slice/hook";
 import type { SafetyDrill, Ship } from "@/types/operations.types";
 import type { User } from "@/types/user.types";
@@ -19,6 +21,7 @@ const emptyForm = {
   musterStation: "", objective: "", durationMinutes: "30",
   scheduledDate: "", participants: [] as string[],
 };
+const emptyDrillErrors = (): DrillErrors => ({ title: "", ship: "", location: "", musterStation: "", scheduledDate: "", durationMinutes: "", objective: "", participants: "" });
 
 const DRILL_ICONS: Record<string, string> = {
   fire: "🔥", evacuation: "🚨", manOverboard: "🌊",
@@ -112,12 +115,27 @@ function EditModal({ drill, ships, crew, onClose, onSave }: {
     status: drill.status,
     participants: drill.participants.map((p) => p.crew?.id ?? "").filter(Boolean),
   });
+  const [errors, setErrors] = useState<DrillErrors>(emptyDrillErrors());
   const [saving, setSaving] = useState(false);
 
+  const updateField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
+    setForm(current => {
+      const next = { ...current, [field]: value };
+      if (field in errors) {
+        const nextErrors = validateDrill({ ...next, durationMinutes: String(next.durationMinutes) });
+        setErrors(currentErrors => ({
+          ...currentErrors,
+          [field]: nextErrors[field as keyof DrillErrors],
+        }));
+      }
+      return next;
+    });
+  };
+
   const handleSave = async () => {
-    if (!form.title.trim() || !form.ship || !form.scheduledDate) {
-      toast.error("Title, ship, and date are required."); return;
-    }
+    const errs = validateDrill({ ...form, durationMinutes: String(form.durationMinutes) });
+    setErrors(errs);
+    if (!isValid(errs)) { toast.error("Please fix the highlighted fields."); return; }
     setSaving(true);
     onSave(drill._id, {
       ...form,
@@ -138,10 +156,15 @@ function EditModal({ drill, ships, crew, onClose, onSave }: {
         </div>
         <div className="p-6 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div><SLabel>Title *</SLabel><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="rounded-xl" /></div>
+            <div>
+              <SLabel>Title *</SLabel>
+              <Input value={form.title} onChange={e => updateField("title", e.target.value)}
+                className={`rounded-xl ${errors.title ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+              <FieldError msg={errors.title} />
+            </div>
             <div>
               <SLabel>Drill Type</SLabel>
-              <select value={form.drillType} onChange={e => setForm({ ...form, drillType: e.target.value as SafetyDrill["drillType"] })} className="maritime-select">
+              <select value={form.drillType} onChange={e => updateField("drillType", e.target.value as SafetyDrill["drillType"])} className="maritime-select">
                 <option value="fire">🔥 Fire</option><option value="evacuation">🚨 Evacuation</option>
                 <option value="manOverboard">🌊 Man Overboard</option><option value="abandonShip">⛵ Abandon Ship</option>
                 <option value="medical">🏥 Medical</option><option value="other">📋 Other</option>
@@ -149,28 +172,57 @@ function EditModal({ drill, ships, crew, onClose, onSave }: {
             </div>
             <div>
               <SLabel>Ship *</SLabel>
-              <select value={form.ship} onChange={e => setForm({ ...form, ship: e.target.value })} className="maritime-select">
+              <select value={form.ship} onChange={e => updateField("ship", e.target.value)}
+                className={`maritime-select ${errors.ship ? "border-red-400" : ""}`}>
                 <option value="">Select ship</option>
                 {ships.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
               </select>
+              <FieldError msg={errors.ship} />
             </div>
-            <div><SLabel>Location *</SLabel><Input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} className="rounded-xl" /></div>
-            <div><SLabel>Muster Station *</SLabel><Input value={form.musterStation} onChange={e => setForm({ ...form, musterStation: e.target.value })} className="rounded-xl" /></div>
-            <div><SLabel>Scheduled Date *</SLabel><Input type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} className="rounded-xl" /></div>
-            <div><SLabel>Duration (min)</SLabel><Input type="number" min="5" max="480" value={form.durationMinutes} onChange={e => setForm({ ...form, durationMinutes: e.target.value })} className="rounded-xl" /></div>
+            <div>
+              <SLabel>Location *</SLabel>
+              <Input value={form.location} onChange={e => updateField("location", e.target.value)}
+                className={`rounded-xl ${errors.location ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+              <FieldError msg={errors.location} />
+            </div>
+            <div>
+              <SLabel>Muster Station *</SLabel>
+              <Input value={form.musterStation} onChange={e => updateField("musterStation", e.target.value)}
+                className={`rounded-xl ${errors.musterStation ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+              <FieldError msg={errors.musterStation} />
+            </div>
+            <div>
+              <SLabel>Scheduled Date *</SLabel>
+              <Input type="date" value={form.scheduledDate} onChange={e => updateField("scheduledDate", e.target.value)}
+                className={`rounded-xl ${errors.scheduledDate ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+              <FieldError msg={errors.scheduledDate} />
+            </div>
+            <div>
+              <SLabel>Duration (min)</SLabel>
+              <Input type="number" min="5" max="480" value={form.durationMinutes} onChange={e => updateField("durationMinutes", e.target.value)}
+                className={`rounded-xl ${errors.durationMinutes ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+              <FieldError msg={errors.durationMinutes} />
+            </div>
             <div>
               <SLabel>Status</SLabel>
-              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as SafetyDrill["status"] })} className="maritime-select">
+              <select value={form.status} onChange={e => updateField("status", e.target.value as SafetyDrill["status"])} className="maritime-select">
                 <option value="scheduled">Scheduled</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
               </select>
             </div>
-            <div className="sm:col-span-2 lg:col-span-3"><SLabel>Objective</SLabel><Input value={form.objective} onChange={e => setForm({ ...form, objective: e.target.value })} className="rounded-xl" placeholder="Optional" /></div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <SLabel>Objective</SLabel>
+              <Input value={form.objective} onChange={e => updateField("objective", e.target.value)}
+                className={`rounded-xl ${errors.objective ? "border-red-400 focus-visible:ring-red-400" : ""}`} placeholder="Optional (min 10 chars if provided)" />
+              <FieldError msg={errors.objective} />
+            </div>
           </div>
           <div>
             <SLabel>Participants (Ctrl/Cmd to multi-select)</SLabel>
-            <select multiple value={form.participants} onChange={e => setForm({ ...form, participants: Array.from(e.target.selectedOptions).map(o => o.value) })} className="maritime-select h-auto min-h-[90px] py-2">
+            <select multiple value={form.participants} onChange={e => updateField("participants", Array.from(e.target.selectedOptions).map(o => o.value))}
+              className={`maritime-select h-auto min-h-[90px] py-2 ${errors.participants ? "border-red-400" : ""}`}>
               {crew.map(m => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
             </select>
+            <FieldError msg={errors.participants} />
           </div>
         </div>
         <div className="border-t border-border px-6 py-4 flex justify-end gap-3">
@@ -192,6 +244,7 @@ export default function Drills() {
 
   const [filters, setFilters] = useState({ status: "", ship: "", from: "", to: "" });
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState<DrillErrors>(emptyDrillErrors());
   const [formError, setFormError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [viewDrill, setViewDrill] = useState<SafetyDrill | null>(null);
@@ -210,10 +263,28 @@ export default function Drills() {
     }),
   });
 
+  const updateFormField = <K extends keyof typeof emptyForm>(
+    field: K,
+    value: (typeof emptyForm)[K]
+  ) => {
+    setForm(current => {
+      const next = { ...current, [field]: value };
+      if (field in formErrors) {
+        const nextErrors = validateDrill(next);
+        setFormErrors(currentErrors => ({
+          ...currentErrors,
+          [field]: nextErrors[field as keyof DrillErrors],
+        }));
+      }
+      return next;
+    });
+    setFormError("");
+  };
+
   const createDrill = useMutation({
     mutationFn: operationsApi.createDrill,
     onSuccess: () => {
-      setForm(emptyForm); setFormError(""); setShowForm(false);
+      setForm(emptyForm); setFormErrors(emptyDrillErrors()); setFormError(""); setShowForm(false);
       queryClient.invalidateQueries({ queryKey: ["drills"] });
       queryClient.invalidateQueries({ queryKey: ["compliance-summary"] });
       toast.success("Safety drill scheduled successfully.");
@@ -243,15 +314,15 @@ export default function Drills() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (form.title.trim().length < 3) return setFormError("Drill title must be at least 3 characters.");
-    if (!form.ship || !form.scheduledDate) return setFormError("Ship and scheduled date are required.");
-    if (!form.location.trim() || !form.musterStation.trim()) return setFormError("Location and muster station are required.");
-    if (form.objective.trim() && form.objective.trim().length < 10) return setFormError("Objective must be at least 10 characters.");
-    if (Number(form.durationMinutes) < 5 || Number(form.durationMinutes) > 480) return setFormError("Duration must be 5–480 minutes.");
-    if (form.participants.length === 0) { toast.error("Select at least one crew participant."); return setFormError("At least one participant is required."); }
+    const errs = validateDrill(form);
+    setFormErrors(errs);
+    if (!isValid(errs)) {
+      const first = Object.values(errs).find(e => e);
+      setFormError(first ?? "Please fix the highlighted fields.");
+      return;
+    }
+    setFormError("");
     const scheduledDate = new Date(form.scheduledDate);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    if (scheduledDate < today) return setFormError("Scheduled date cannot be in the past.");
     createDrill.mutate({ ...form, objective: form.objective.trim() || undefined, durationMinutes: Number(form.durationMinutes), scheduledDate: scheduledDate.toISOString() });
   };
 
@@ -318,10 +389,14 @@ export default function Drills() {
           <CardContent>
             <form onSubmit={submit} className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div><SLabel>Drill Title *</SLabel><Input required placeholder="e.g. Fire Response Drill Q2" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="rounded-xl" /></div>
+                <div>
+                  <SLabel>Drill Title *</SLabel>
+                  <Input placeholder="e.g. Fire Response Drill Q2" value={form.title} onChange={e => updateFormField("title", e.target.value)} className={`rounded-xl ${formErrors.title ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                  <FieldError msg={formErrors.title} />
+                </div>
                 <div>
                   <SLabel>Drill Type</SLabel>
-                  <select value={form.drillType} onChange={e => setForm({ ...form, drillType: e.target.value })} className="maritime-select">
+                  <select value={form.drillType} onChange={e => updateFormField("drillType", e.target.value)} className="maritime-select">
                     <option value="fire">🔥 Fire</option><option value="evacuation">🚨 Evacuation</option>
                     <option value="manOverboard">🌊 Man Overboard</option><option value="abandonShip">⛵ Abandon Ship</option>
                     <option value="medical">🏥 Medical</option><option value="other">📋 Other</option>
@@ -329,22 +404,24 @@ export default function Drills() {
                 </div>
                 <div>
                   <SLabel>Ship *</SLabel>
-                  <select required value={form.ship} onChange={e => setForm({ ...form, ship: e.target.value })} className="maritime-select">
+                  <select value={form.ship} onChange={e => updateFormField("ship", e.target.value)} className={`maritime-select ${formErrors.ship ? "border-red-400" : ""}`}>
                     <option value="">Select ship</option>
                     {ships.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                   </select>
+                  <FieldError msg={formErrors.ship} />
                 </div>
-                <div><SLabel>Location *</SLabel><Input required placeholder="e.g. Main deck" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} className="rounded-xl" /></div>
-                <div><SLabel>Muster Station *</SLabel><Input required placeholder="e.g. Station A" value={form.musterStation} onChange={e => setForm({ ...form, musterStation: e.target.value })} className="rounded-xl" /></div>
-                <div><SLabel>Scheduled Date *</SLabel><Input required type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} className="rounded-xl" /></div>
-                <div><SLabel>Duration (minutes)</SLabel><Input type="number" min="5" max="480" placeholder="30" value={form.durationMinutes} onChange={e => setForm({ ...form, durationMinutes: e.target.value })} className="rounded-xl" /></div>
-                <div className="sm:col-span-2"><SLabel>Objective (optional)</SLabel><Input placeholder="Describe the drill objective" value={form.objective} onChange={e => setForm({ ...form, objective: e.target.value })} className="rounded-xl" /></div>
+                <div><SLabel>Location *</SLabel><Input placeholder="e.g. Main deck" value={form.location} onChange={e => updateFormField("location", e.target.value)} className={`rounded-xl ${formErrors.location ? "border-red-400 focus-visible:ring-red-400" : ""}`} /><FieldError msg={formErrors.location} /></div>
+                <div><SLabel>Muster Station *</SLabel><Input placeholder="e.g. Station A" value={form.musterStation} onChange={e => updateFormField("musterStation", e.target.value)} className={`rounded-xl ${formErrors.musterStation ? "border-red-400 focus-visible:ring-red-400" : ""}`} /><FieldError msg={formErrors.musterStation} /></div>
+                <div><SLabel>Scheduled Date *</SLabel><Input type="date" value={form.scheduledDate} onChange={e => updateFormField("scheduledDate", e.target.value)} className={`rounded-xl ${formErrors.scheduledDate ? "border-red-400 focus-visible:ring-red-400" : ""}`} /><FieldError msg={formErrors.scheduledDate} /></div>
+                <div><SLabel>Duration (minutes)</SLabel><Input type="number" min="5" max="480" placeholder="30" value={form.durationMinutes} onChange={e => updateFormField("durationMinutes", e.target.value)} className={`rounded-xl ${formErrors.durationMinutes ? "border-red-400 focus-visible:ring-red-400" : ""}`} /><FieldError msg={formErrors.durationMinutes} /></div>
+                <div className="sm:col-span-2"><SLabel>Objective (optional)</SLabel><Input placeholder="Describe the drill objective" value={form.objective} onChange={e => updateFormField("objective", e.target.value)} className={`rounded-xl ${formErrors.objective ? "border-red-400 focus-visible:ring-red-400" : ""}`} /><FieldError msg={formErrors.objective} /></div>
               </div>
               <div>
                 <SLabel>Participants * (hold Ctrl/Cmd for multiple)</SLabel>
-                <select multiple value={form.participants} onChange={e => setForm({ ...form, participants: Array.from(e.target.selectedOptions).map(o => o.value) })} className="maritime-select h-auto min-h-[100px] py-2">
+                <select multiple value={form.participants} onChange={e => updateFormField("participants", Array.from(e.target.selectedOptions).map(o => o.value))} className={`maritime-select h-auto min-h-[100px] py-2 ${formErrors.participants ? "border-red-400" : ""}`}>
                   {crew.map(m => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
                 </select>
+                <FieldError msg={formErrors.participants} />
                 {form.participants.length > 0 && <p className="mt-1.5 text-xs text-muted-foreground">{form.participants.length} crew member{form.participants.length !== 1 ? "s" : ""} selected</p>}
               </div>
               {formError && (
@@ -353,7 +430,7 @@ export default function Drills() {
                 </div>
               )}
               <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => { setForm(emptyForm); setFormError(""); }} className="rounded-xl">Reset</Button>
+                <Button type="button" variant="outline" onClick={() => { setForm(emptyForm); setFormErrors(emptyDrillErrors()); setFormError(""); }} className="rounded-xl">Reset</Button>
                 <Button type="submit" disabled={createDrill.isPending} className="gap-2 rounded-xl font-semibold">
                   <CalendarPlus className="h-4 w-4" />{createDrill.isPending ? "Scheduling..." : "Schedule Drill"}
                 </Button>

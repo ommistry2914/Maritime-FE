@@ -7,6 +7,8 @@ import { operationsApi } from "@/api/operations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { FieldError } from "@/components/ui/FieldError";
+import { validateShip, isValid, type ShipErrors } from "@/lib/validation";
 import type { Ship } from "@/types/operations.types";
 
 const STATUS_META: Record<string, { label: string; dot: string; badge: string; strip: string }> = {
@@ -14,6 +16,8 @@ const STATUS_META: Record<string, { label: string; dot: string; badge: string; s
   maintenance: { label: "In Maintenance", dot: "bg-amber-500", badge: "badge-pending", strip: "linear-gradient(90deg, oklch(0.7 0.18 75), oklch(0.72 0.2 60))" },
   inactive: { label: "Inactive", dot: "bg-gray-400", badge: "badge-cancelled", strip: "linear-gradient(90deg, oklch(0.6 0.01 0), oklch(0.7 0.01 0))" },
 };
+
+const emptyErrors = (): ShipErrors => ({ name: "", imoNumber: "", vesselType: "" });
 
 function SL({ children }: { children: React.ReactNode }) {
   return <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</p>;
@@ -39,11 +43,13 @@ function ViewModal({ ship, onClose }: { ship: Ship; onClose: () => void }) {
               { label: "Vessel Name", value: ship.name },
               { label: "IMO Number", value: ship.imoNumber },
               { label: "Vessel Type", value: ship.vesselType },
-              { label: "Status", value: (
-                <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ${meta.badge}`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />{meta.label}
-                </span>
-              )},
+              {
+                label: "Status", value: (
+                  <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ${meta.badge}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />{meta.label}
+                  </span>
+                )
+              },
             ].map(({ label, value }) => (
               <div key={label}>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
@@ -63,7 +69,27 @@ function ViewModal({ ship, onClose }: { ship: Ship; onClose: () => void }) {
 /* ── Edit Modal ── */
 function EditModal({ ship, onClose, onSave }: { ship: Ship; onClose: () => void; onSave: (id: string, payload: Partial<Ship>) => void }) {
   const [form, setForm] = useState({ name: ship.name, imoNumber: ship.imoNumber, vesselType: ship.vesselType, status: ship.status });
+  const [errors, setErrors] = useState<ShipErrors>(emptyErrors());
   const [saving, setSaving] = useState(false);
+
+  const updateField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
+    setForm(current => {
+      const next = { ...current, [field]: value };
+      if (field in errors) {
+        const nextErrors = validateShip(next);
+        setErrors(currentErrors => ({ ...currentErrors, [field]: nextErrors[field as keyof ShipErrors] }));
+      }
+      return next;
+    });
+  };
+
+  const handleSave = () => {
+    const errs = validateShip(form);
+    setErrors(errs);
+    if (!isValid(errs)) return;
+    setSaving(true);
+    onSave(ship._id, form);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "oklch(0 0 0/50%)" }} onClick={onClose}>
@@ -74,12 +100,27 @@ function EditModal({ ship, onClose, onSave }: { ship: Ship; onClose: () => void;
         </div>
         <div className="p-6 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div><SL>Ship Name *</SL><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="rounded-xl" /></div>
-            <div><SL>IMO Number *</SL><Input value={form.imoNumber} onChange={e => setForm({ ...form, imoNumber: e.target.value })} className="rounded-xl" /></div>
-            <div><SL>Vessel Type *</SL><Input value={form.vesselType} onChange={e => setForm({ ...form, vesselType: e.target.value })} className="rounded-xl" /></div>
+            <div>
+              <SL>Ship Name *</SL>
+              <Input value={form.name} onChange={e => updateField("name", e.target.value)}
+                className={`rounded-xl ${errors.name ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+              <FieldError msg={errors.name} />
+            </div>
+            <div>
+              <SL>IMO Number *</SL>
+              <Input value={form.imoNumber} onChange={e => updateField("imoNumber", e.target.value)}
+                className={`rounded-xl ${errors.imoNumber ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+              <FieldError msg={errors.imoNumber} />
+            </div>
+            <div>
+              <SL>Vessel Type *</SL>
+              <Input value={form.vesselType} onChange={e => updateField("vesselType", e.target.value)}
+                className={`rounded-xl ${errors.vesselType ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+              <FieldError msg={errors.vesselType} />
+            </div>
             <div>
               <SL>Status</SL>
-              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Ship["status"] })} className="maritime-select">
+              <select value={form.status} onChange={e => updateField("status", e.target.value as Ship["status"])} className="maritime-select">
                 <option value="operational">Operational</option>
                 <option value="maintenance">Maintenance</option>
                 <option value="inactive">Inactive</option>
@@ -89,11 +130,7 @@ function EditModal({ ship, onClose, onSave }: { ship: Ship; onClose: () => void;
         </div>
         <div className="border-t border-border px-6 py-4 flex justify-end gap-3">
           <Button variant="outline" onClick={onClose} className="rounded-xl">Cancel</Button>
-          <Button disabled={saving} className="gap-2 rounded-xl font-semibold" onClick={() => {
-            if (!form.name.trim() || !form.imoNumber.trim() || !form.vesselType.trim()) { toast.error("All fields are required."); return; }
-            setSaving(true);
-            onSave(ship._id, form);
-          }}>
+          <Button disabled={saving} className="gap-2 rounded-xl font-semibold" onClick={handleSave}>
             <Save className="h-4 w-4" />{saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
@@ -106,15 +143,27 @@ function EditModal({ ship, onClose, onSave }: { ship: Ship; onClose: () => void;
 export default function Ships() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Pick<Ship, "name" | "imoNumber" | "vesselType" | "status">>({ name: "", imoNumber: "", vesselType: "", status: "operational" });
+  const [errors, setErrors] = useState<ShipErrors>(emptyErrors());
   const [showForm, setShowForm] = useState(false);
   const [viewShip, setViewShip] = useState<Ship | null>(null);
   const [editShip, setEditShip] = useState<Ship | null>(null);
+
+  const updateField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
+    setForm(current => {
+      const next = { ...current, [field]: value };
+      if (field in errors) {
+        const nextErrors = validateShip(next);
+        setErrors(currentErrors => ({ ...currentErrors, [field]: nextErrors[field as keyof ShipErrors] }));
+      }
+      return next;
+    });
+  };
 
   const { data: ships = [], isLoading } = useQuery({ queryKey: ["ships"], queryFn: operationsApi.ships });
 
   const createShip = useMutation({
     mutationFn: operationsApi.createShip,
-    onSuccess: () => { setForm({ name: "", imoNumber: "", vesselType: "", status: "operational" }); setShowForm(false); queryClient.invalidateQueries({ queryKey: ["ships"] }); toast.success("Vessel added to fleet registry."); },
+    onSuccess: () => { setForm({ name: "", imoNumber: "", vesselType: "", status: "operational" }); setErrors(emptyErrors()); setShowForm(false); queryClient.invalidateQueries({ queryKey: ["ships"] }); toast.success("Vessel added to fleet registry."); },
   });
 
   const updateShipMutation = useMutation({
@@ -123,7 +172,13 @@ export default function Ships() {
     onError: () => toast.error("Failed to update vessel."),
   });
 
-  const submit = (e: FormEvent) => { e.preventDefault(); createShip.mutate(form); };
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const errs = validateShip(form);
+    setErrors(errs);
+    if (!isValid(errs)) return;
+    createShip.mutate(form);
+  };
 
   return (
     <div className="space-y-6">
@@ -139,19 +194,37 @@ export default function Ships() {
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base font-semibold"><ShipWheel className="h-4 w-4 text-primary" />Register New Vessel</CardTitle></CardHeader>
           <CardContent>
-            <form onSubmit={submit} className="space-y-4">
+            <form onSubmit={submit} className="space-y-4" noValidate>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div><SL>Ship Name *</SL><Input required placeholder="e.g. MV Pacific Star" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="rounded-xl" /></div>
-                <div><SL>IMO Number *</SL><Input required placeholder="e.g. IMO9876543" value={form.imoNumber} onChange={e => setForm({ ...form, imoNumber: e.target.value })} className="rounded-xl" /></div>
-                <div><SL>Vessel Type *</SL><Input required placeholder="e.g. Bulk Carrier" value={form.vesselType} onChange={e => setForm({ ...form, vesselType: e.target.value })} className="rounded-xl" /></div>
+                <div>
+                  <SL>Ship Name *</SL>
+                  <Input placeholder="e.g. MV Pacific Star" value={form.name}
+                    onChange={e => updateField("name", e.target.value)}
+                    className={`rounded-xl ${errors.name ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                  <FieldError msg={errors.name} />
+                </div>
+                <div>
+                  <SL>IMO Number *</SL>
+                  <Input placeholder="e.g. IMO9876543" value={form.imoNumber}
+                    onChange={e => updateField("imoNumber", e.target.value)}
+                    className={`rounded-xl ${errors.imoNumber ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                  <FieldError msg={errors.imoNumber} />
+                </div>
+                <div>
+                  <SL>Vessel Type *</SL>
+                  <Input placeholder="e.g. Bulk Carrier" value={form.vesselType}
+                    onChange={e => updateField("vesselType", e.target.value)}
+                    className={`rounded-xl ${errors.vesselType ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                  <FieldError msg={errors.vesselType} />
+                </div>
                 <div><SL>Status</SL>
-                  <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as Ship["status"] })} className="maritime-select">
+                  <select value={form.status} onChange={e => updateField("status", e.target.value as Ship["status"])} className="maritime-select">
                     <option value="operational">Operational</option><option value="maintenance">Maintenance</option><option value="inactive">Inactive</option>
                   </select>
                 </div>
               </div>
               <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setForm({ name: "", imoNumber: "", vesselType: "", status: "operational" })} className="rounded-xl">Reset</Button>
+                <Button type="button" variant="outline" onClick={() => { setForm({ name: "", imoNumber: "", vesselType: "", status: "operational" }); setErrors(emptyErrors()); }} className="rounded-xl">Reset</Button>
                 <Button type="submit" disabled={createShip.isPending} className="gap-2 rounded-xl font-semibold"><ShipWheel className="h-4 w-4" />{createShip.isPending ? "Adding..." : "Add to Fleet"}</Button>
               </div>
             </form>

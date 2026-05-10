@@ -7,11 +7,14 @@ import { operationsApi } from "@/api/operations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { FieldError } from "@/components/ui/FieldError";
+import { validateMaintenance, isValid, type MaintenanceErrors } from "@/lib/validation";
 import { useAppSelector } from "@/slice/hook";
 import type { MaintenanceTask, Ship } from "@/types/operations.types";
 import type { User } from "@/types/user.types";
 
 const emptyForm = { title: "", description: "", category: "engine", component: "", location: "", ship: "", assignedTo: "", dueDate: "", priority: "medium", estimatedHours: "", safetyCritical: false };
+const emptyMaintenanceErrors = (): MaintenanceErrors => ({ title: "", component: "", ship: "", assignedTo: "", dueDate: "", estimatedHours: "", description: "" });
 
 function SL({ children }: { children: React.ReactNode }) {
   return <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</p>;
@@ -86,7 +89,28 @@ function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTa
     priority: task.priority, estimatedHours: task.estimatedHours ? String(task.estimatedHours) : "",
     safetyCritical: task.safetyCritical,
   });
+  const [errors, setErrors] = useState<MaintenanceErrors>(emptyMaintenanceErrors());
   const [saving, setSaving] = useState(false);
+
+  const handleSave = () => {
+    const errs = validateMaintenance(form);
+    setErrors(errs);
+    if (!isValid(errs)) { toast.error("Please fix the highlighted fields."); return; }
+    setSaving(true);
+    onSave(task._id, { ...form, estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined, description: form.description.trim() || undefined, location: form.location.trim() || undefined, dueDate: new Date(form.dueDate).toISOString() });
+  };
+
+  const f = (field: keyof MaintenanceErrors) => ({
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      setForm(current => {
+        const next = { ...current, [field]: e.target.value };
+        const nextErrors = validateMaintenance(next);
+        setErrors(currentErrors => ({ ...currentErrors, [field]: nextErrors[field] }));
+        return next;
+      });
+    },
+    className: `rounded-xl ${errors[field] ? "border-red-400 focus-visible:ring-red-400" : ""}`,
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto" style={{ background: "oklch(0 0 0/50%)" }} onClick={onClose}>
@@ -97,8 +121,16 @@ function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTa
         </div>
         <div className="p-6 space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div><SL>Title *</SL><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="rounded-xl" /></div>
-            <div><SL>Component *</SL><Input value={form.component} onChange={e => setForm({ ...form, component: e.target.value })} className="rounded-xl" /></div>
+            <div>
+              <SL>Title *</SL>
+              <Input value={form.title} {...f("title")} />
+              <FieldError msg={errors.title} />
+            </div>
+            <div>
+              <SL>Component *</SL>
+              <Input value={form.component} {...f("component")} />
+              <FieldError msg={errors.component} />
+            </div>
             <div>
               <SL>Category</SL>
               <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value as MaintenanceTask["category"] })} className="maritime-select">
@@ -108,19 +140,25 @@ function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTa
             </div>
             <div>
               <SL>Ship *</SL>
-              <select value={form.ship} onChange={e => setForm({ ...form, ship: e.target.value })} className="maritime-select">
+              <select value={form.ship} {...f("ship")} className={`maritime-select ${errors.ship ? "border-red-400" : ""}`}>
                 <option value="">Select ship</option>
                 {ships.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
               </select>
+              <FieldError msg={errors.ship} />
             </div>
             <div>
               <SL>Assigned Crew *</SL>
-              <select value={form.assignedTo} onChange={e => setForm({ ...form, assignedTo: e.target.value })} className="maritime-select">
+              <select value={form.assignedTo} {...f("assignedTo")} className={`maritime-select ${errors.assignedTo ? "border-red-400" : ""}`}>
                 <option value="">Select crew</option>
                 {crew.map(m => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
               </select>
+              <FieldError msg={errors.assignedTo} />
             </div>
-            <div><SL>Due Date *</SL><Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="rounded-xl" /></div>
+            <div>
+              <SL>Due Date *</SL>
+              <Input type="date" value={form.dueDate} {...f("dueDate")} />
+              <FieldError msg={errors.dueDate} />
+            </div>
             <div>
               <SL>Priority</SL>
               <select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value as MaintenanceTask["priority"] })} className="maritime-select">
@@ -128,9 +166,17 @@ function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTa
               </select>
             </div>
             <div><SL>Location</SL><Input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} className="rounded-xl" placeholder="Vessel location" /></div>
-            <div><SL>Est. Hours</SL><Input type="number" min="0.25" step="0.25" value={form.estimatedHours} onChange={e => setForm({ ...form, estimatedHours: e.target.value })} className="rounded-xl" /></div>
+            <div>
+              <SL>Est. Hours</SL>
+              <Input type="number" min="0.25" step="0.25" value={form.estimatedHours} {...f("estimatedHours")} />
+              <FieldError msg={errors.estimatedHours} />
+            </div>
           </div>
-          <div><SL>Description</SL><Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="rounded-xl" placeholder="Optional description" /></div>
+          <div>
+            <SL>Description</SL>
+            <Input value={form.description} {...f("description")} placeholder="Optional description (min 10 chars if provided)" />
+            <FieldError msg={errors.description} />
+          </div>
           <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3">
             <input type="checkbox" checked={form.safetyCritical} onChange={e => setForm({ ...form, safetyCritical: e.target.checked })} className="h-4 w-4 rounded accent-primary" />
             <div><p className="text-sm font-semibold">Safety Critical</p><p className="text-xs text-muted-foreground">Mark if failure could pose a safety risk</p></div>
@@ -139,11 +185,7 @@ function EditModal({ task, ships, crew, onClose, onSave }: { task: MaintenanceTa
         </div>
         <div className="border-t border-border px-6 py-4 flex justify-end gap-3">
           <Button variant="outline" onClick={onClose} className="rounded-xl">Cancel</Button>
-          <Button disabled={saving} className="gap-2 rounded-xl font-semibold" onClick={() => {
-            if (!form.title.trim() || !form.ship || !form.assignedTo || !form.dueDate) { toast.error("Title, ship, crew, and date are required."); return; }
-            setSaving(true);
-            onSave(task._id, { ...form, estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined, description: form.description.trim() || undefined, location: form.location.trim() || undefined, dueDate: new Date(form.dueDate).toISOString() });
-          }}>
+          <Button disabled={saving} className="gap-2 rounded-xl font-semibold" onClick={handleSave}>
             <Save className="h-4 w-4" />{saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
@@ -159,6 +201,7 @@ export default function Maintenance() {
   const isAdmin = user?.role === "admin";
   const [filters, setFilters] = useState({ status: "", ship: "", from: "", to: "" });
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState<MaintenanceErrors>(emptyMaintenanceErrors());
   const [formError, setFormError] = useState("");
   const [taskNotes, setTaskNotes] = useState<Record<string, string>>({});
   const [showForm, setShowForm] = useState(false);
@@ -172,9 +215,27 @@ export default function Maintenance() {
     queryFn: () => operationsApi.maintenance({ ...(filters.status ? { status: filters.status } : {}), ...(filters.ship ? { ship: filters.ship } : {}), ...(filters.from ? { from: filters.from } : {}), ...(filters.to ? { to: filters.to } : {}), ...(!isAdmin ? { mine: "true" } : {}) }),
   });
 
+  const updateFormField = <K extends keyof typeof emptyForm>(
+    field: K,
+    value: (typeof emptyForm)[K]
+  ) => {
+    setForm(current => {
+      const next = { ...current, [field]: value };
+      if (field in formErrors) {
+        const nextErrors = validateMaintenance(next);
+        setFormErrors(currentErrors => ({
+          ...currentErrors,
+          [field]: nextErrors[field as keyof MaintenanceErrors],
+        }));
+      }
+      return next;
+    });
+    setFormError("");
+  };
+
   const createTask = useMutation({
     mutationFn: operationsApi.createMaintenance,
-    onSuccess: () => { setForm(emptyForm); setFormError(""); setShowForm(false); queryClient.invalidateQueries({ queryKey: ["maintenance"] }); queryClient.invalidateQueries({ queryKey: ["compliance-summary"] }); toast.success("Maintenance task created."); },
+    onSuccess: () => { setForm(emptyForm); setFormErrors(emptyMaintenanceErrors()); setFormError(""); setShowForm(false); queryClient.invalidateQueries({ queryKey: ["maintenance"] }); queryClient.invalidateQueries({ queryKey: ["compliance-summary"] }); toast.success("Maintenance task created."); },
   });
 
   const updateTask = useMutation({
@@ -190,12 +251,16 @@ export default function Maintenance() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (form.title.trim().length < 3) return setFormError("Task title must be at least 3 characters.");
-    if (!form.component.trim()) return setFormError("Component is required.");
-    if (!form.ship || !form.assignedTo || !form.dueDate) { toast.error("Select ship, crew, and due date."); return setFormError("Ship, crew, and due date are required."); }
+    const errs = validateMaintenance(form);
+    setFormErrors(errs);
+    if (!isValid(errs)) {
+      // Show the first error message in the banner
+      const first = Object.values(errs).find(e => e);
+      setFormError(first ?? "Please fix the highlighted fields.");
+      return;
+    }
+    setFormError("");
     const dueDate = new Date(form.dueDate);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    if (dueDate < today) return setFormError("Due date cannot be in the past.");
     createTask.mutate({ ...form, description: form.description.trim() || undefined, location: form.location.trim() || undefined, estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined, dueDate: dueDate.toISOString() });
   };
 
@@ -241,27 +306,59 @@ export default function Maintenance() {
           <CardContent>
             <form onSubmit={submit} className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div><SL>Task Title *</SL><Input required placeholder="e.g. Engine oil change" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="rounded-xl" /></div>
-                <div><SL>Component *</SL><Input required placeholder="e.g. Main engine" value={form.component} onChange={e => setForm({ ...form, component: e.target.value })} className="rounded-xl" /></div>
-                <div><SL>Category</SL><select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="maritime-select">
+                <div>
+                  <SL>Task Title *</SL>
+                  <Input placeholder="e.g. Engine oil change" value={form.title} onChange={e => updateFormField("title", e.target.value)} className={`rounded-xl ${formErrors.title ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                  <FieldError msg={formErrors.title} />
+                </div>
+                <div>
+                  <SL>Component *</SL>
+                  <Input placeholder="e.g. Main engine" value={form.component} onChange={e => updateFormField("component", e.target.value)} className={`rounded-xl ${formErrors.component ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                  <FieldError msg={formErrors.component} />
+                </div>
+                <div><SL>Category</SL><select value={form.category} onChange={e => updateFormField("category", e.target.value)} className="maritime-select">
                   <option value="engine">Engine</option><option value="deck">Deck</option><option value="electrical">Electrical</option><option value="hull">Hull</option><option value="safetyEquipment">Safety Equipment</option><option value="navigation">Navigation</option><option value="other">Other</option>
                 </select></div>
-                <div><SL>Ship *</SL><select required value={form.ship} onChange={e => setForm({ ...form, ship: e.target.value })} className="maritime-select"><option value="">Select ship</option>{ships.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}</select></div>
-                <div><SL>Assigned Crew *</SL><select required value={form.assignedTo} onChange={e => setForm({ ...form, assignedTo: e.target.value })} className="maritime-select"><option value="">Select crew</option>{crew.map(m => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}</select></div>
-                <div><SL>Due Date *</SL><Input required type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="rounded-xl" /></div>
-                <div><SL>Priority</SL><select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })} className="maritime-select"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
-                <div><SL>Location</SL><Input placeholder="Vessel location" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} className="rounded-xl" /></div>
-                <div><SL>Est. Hours</SL><Input type="number" min="0.25" step="0.25" placeholder="e.g. 4.5" value={form.estimatedHours} onChange={e => setForm({ ...form, estimatedHours: e.target.value })} className="rounded-xl" /></div>
+                <div>
+                  <SL>Ship *</SL>
+                  <select value={form.ship} onChange={e => updateFormField("ship", e.target.value)} className={`maritime-select ${formErrors.ship ? "border-red-400" : ""}`}>
+                    <option value="">Select ship</option>{ships.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                  </select>
+                  <FieldError msg={formErrors.ship} />
+                </div>
+                <div>
+                  <SL>Assigned Crew *</SL>
+                  <select value={form.assignedTo} onChange={e => updateFormField("assignedTo", e.target.value)} className={`maritime-select ${formErrors.assignedTo ? "border-red-400" : ""}`}>
+                    <option value="">Select crew</option>{crew.map(m => <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>)}
+                  </select>
+                  <FieldError msg={formErrors.assignedTo} />
+                </div>
+                <div>
+                  <SL>Due Date *</SL>
+                  <Input type="date" value={form.dueDate} onChange={e => updateFormField("dueDate", e.target.value)} className={`rounded-xl ${formErrors.dueDate ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                  <FieldError msg={formErrors.dueDate} />
+                </div>
+                <div><SL>Priority</SL><select value={form.priority} onChange={e => updateFormField("priority", e.target.value)} className="maritime-select"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
+                <div><SL>Location</SL><Input placeholder="Vessel location" value={form.location} onChange={e => updateFormField("location", e.target.value)} className="rounded-xl" /></div>
+                <div>
+                  <SL>Est. Hours (0.25–500)</SL>
+                  <Input type="number" min="0.25" step="0.25" placeholder="e.g. 4.5" value={form.estimatedHours} onChange={e => updateFormField("estimatedHours", e.target.value)} className={`rounded-xl ${formErrors.estimatedHours ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                  <FieldError msg={formErrors.estimatedHours} />
+                </div>
               </div>
-              <div><SL>Description</SL><Input placeholder="Optional description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="rounded-xl" /></div>
+              <div>
+                <SL>Description (min 10 chars if provided)</SL>
+                <Input placeholder="Optional description" value={form.description} onChange={e => updateFormField("description", e.target.value)} className={`rounded-xl ${formErrors.description ? "border-red-400 focus-visible:ring-red-400" : ""}`} />
+                <FieldError msg={formErrors.description} />
+              </div>
               <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3">
-                <input type="checkbox" checked={form.safetyCritical} onChange={e => setForm({ ...form, safetyCritical: e.target.checked })} className="h-4 w-4 rounded accent-primary" />
+                <input type="checkbox" checked={form.safetyCritical} onChange={e => updateFormField("safetyCritical", e.target.checked)} className="h-4 w-4 rounded accent-primary" />
                 <div><p className="text-sm font-semibold">Safety Critical</p><p className="text-xs text-muted-foreground">Mark if failure could pose a safety risk</p></div>
                 <ShieldAlert className="ml-auto h-4 w-4 text-orange-500" />
               </label>
               {formError && <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"><AlertTriangle className="h-4 w-4 shrink-0" />{formError}</div>}
               <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => { setForm(emptyForm); setFormError(""); }} className="rounded-xl">Reset</Button>
+                <Button type="button" variant="outline" onClick={() => { setForm(emptyForm); setFormErrors(emptyMaintenanceErrors()); setFormError(""); }} className="rounded-xl">Reset</Button>
                 <Button type="submit" disabled={createTask.isPending} className="gap-2 rounded-xl font-semibold"><Plus className="h-4 w-4" />{createTask.isPending ? "Creating..." : "Create Task"}</Button>
               </div>
             </form>

@@ -7,6 +7,8 @@ import { operationsApi } from "@/api/operations";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { FieldError } from "@/components/ui/FieldError";
+import { validateUserForm, isValid, type UserFormErrors } from "@/lib/validation";
 import { useAppSelector } from "@/slice/hook";
 import type { User } from "@/types/user.types";
 
@@ -33,6 +35,17 @@ const emptyForm = (role: AccountForm["role"]): AccountForm => ({
   department: "",
   phone: "",
 });
+
+const emptyErrors: UserFormErrors = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  password: "",
+  employeeId: "",
+  rank: "",
+  department: "",
+  phone: "",
+};
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -61,8 +74,8 @@ function InitialsAvatar({
           role === "admin"
             ? "linear-gradient(135deg, oklch(0.42 0.15 220), oklch(0.55 0.18 195))"
             : role === "crew"
-            ? "linear-gradient(135deg, oklch(0.55 0.18 160), oklch(0.65 0.2 145))"
-            : "linear-gradient(135deg, oklch(0.7 0.18 75), oklch(0.72 0.2 60))",
+              ? "linear-gradient(135deg, oklch(0.55 0.18 160), oklch(0.65 0.2 145))"
+              : "linear-gradient(135deg, oklch(0.7 0.18 75), oklch(0.72 0.2 60))",
       }}
     >
       {initials.toUpperCase() || "?"}
@@ -76,8 +89,30 @@ export default function AccountManagement() {
   const isSuperAdmin = currentUser?.role === "superAdmin";
   const managedRole = isSuperAdmin ? "admin" : "crew";
   const [form, setForm] = useState<AccountForm>(() => emptyForm(managedRole));
+  const [errors, setErrors] = useState<UserFormErrors>(emptyErrors);
   const [showForm, setShowForm] = useState(false);
   const listParams = useMemo(() => ({ role: managedRole }), [managedRole]);
+
+  const updateField = <K extends keyof UserFormErrors & keyof AccountForm>(
+    field: K,
+    value: AccountForm[K]
+  ) => {
+    setForm((current) => {
+      const next = { ...current, [field]: value };
+      const nextErrors = validateUserForm(next);
+      setErrors((currentErrors) => ({
+        ...currentErrors,
+        [field]: nextErrors[field],
+      }));
+      return next;
+    });
+  };
+
+  const resetForm = () => {
+    const next = emptyForm(managedRole);
+    setForm(next);
+    setErrors(emptyErrors);
+  };
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["managed-users", managedRole],
@@ -87,7 +122,7 @@ export default function AccountManagement() {
   const createUser = useMutation({
     mutationFn: operationsApi.createUser,
     onSuccess: () => {
-      setForm(emptyForm(managedRole));
+      resetForm();
       setShowForm(false);
       queryClient.invalidateQueries({ queryKey: ["managed-users"] });
       queryClient.invalidateQueries({ queryKey: ["crew"] });
@@ -99,14 +134,27 @@ export default function AccountManagement() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    createUser.mutate({
-      ...form,
+    const errs = validateUserForm(form);
+    setErrors(errs);
+    if (!isValid(errs)) { toast.error("Please fix the highlighted fields."); return; }
+    const basePayload = {
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      password: form.password,
       role: managedRole,
-      department: form.department || undefined,
-      employeeId: form.employeeId || undefined,
-      rank: form.rank || undefined,
-      phone: form.phone || undefined,
-    });
+    };
+    createUser.mutate(
+      isSuperAdmin
+        ? basePayload
+        : {
+            ...basePayload,
+            employeeId: form.employeeId,
+            rank: form.rank,
+            department: form.department,
+            phone: form.phone,
+          }
+    );
   };
 
   return (
@@ -135,8 +183,8 @@ export default function AccountManagement() {
           {showForm
             ? "Cancel"
             : isSuperAdmin
-            ? "Create Admin"
-            : "Add Crew Member"}
+              ? "Create Admin"
+              : "Add Crew Member"}
         </Button>
       </div>
 
@@ -159,89 +207,83 @@ export default function AccountManagement() {
                 <div>
                   <SectionLabel>First Name *</SectionLabel>
                   <Input
-                    required
                     placeholder="John"
                     value={form.firstName}
-                    onChange={(e) =>
-                      setForm({ ...form, firstName: e.target.value })
-                    }
-                    className="rounded-xl"
+                    onChange={(e) => updateField("firstName", e.target.value)}
+                    className={`rounded-xl ${errors.firstName ? "border-red-400 focus-visible:ring-red-400" : ""}`}
                   />
+                  <FieldError msg={errors.firstName} />
                 </div>
                 <div>
                   <SectionLabel>Last Name *</SectionLabel>
                   <Input
-                    required
                     placeholder="Doe"
                     value={form.lastName}
-                    onChange={(e) =>
-                      setForm({ ...form, lastName: e.target.value })
-                    }
-                    className="rounded-xl"
+                    onChange={(e) => updateField("lastName", e.target.value)}
+                    className={`rounded-xl ${errors.lastName ? "border-red-400 focus-visible:ring-red-400" : ""}`}
                   />
+                  <FieldError msg={errors.lastName} />
                 </div>
                 <div>
                   <SectionLabel>Email *</SectionLabel>
                   <Input
-                    required
                     type="email"
                     placeholder="john.doe@example.com"
                     value={form.email}
-                    onChange={(e) =>
-                      setForm({ ...form, email: e.target.value })
-                    }
-                    className="rounded-xl"
+                    onChange={(e) => updateField("email", e.target.value)}
+                    className={`rounded-xl ${errors.email ? "border-red-400 focus-visible:ring-red-400" : ""}`}
                   />
+                  <FieldError msg={errors.email} />
                 </div>
                 <div>
                   <SectionLabel>Temporary Password *</SectionLabel>
                   <Input
-                    required
                     type="password"
                     placeholder="••••••••"
                     value={form.password}
-                    onChange={(e) =>
-                      setForm({ ...form, password: e.target.value })
-                    }
-                    className="rounded-xl"
+                    onChange={(e) => updateField("password", e.target.value)}
+                    className={`rounded-xl ${errors.password ? "border-red-400 focus-visible:ring-red-400" : ""}`}
                   />
+                  <FieldError msg={errors.password} />
                 </div>
 
                 {!isSuperAdmin && (
                   <>
                     <div>
-                      <SectionLabel>Employee ID</SectionLabel>
+                      <SectionLabel>Employee ID *</SectionLabel>
                       <Input
                         placeholder="e.g. EMP-001"
                         value={form.employeeId}
                         onChange={(e) =>
-                          setForm({ ...form, employeeId: e.target.value })
+                          updateField("employeeId", e.target.value)
                         }
-                        className="rounded-xl"
+                        className={`rounded-xl ${errors.employeeId ? "border-red-400 focus-visible:ring-red-400" : ""}`}
                       />
+                      <FieldError msg={errors.employeeId} />
                     </div>
                     <div>
-                      <SectionLabel>Rank / Designation</SectionLabel>
+                      <SectionLabel>Rank / Designation *</SectionLabel>
                       <Input
                         placeholder="e.g. Chief Engineer"
                         value={form.rank}
                         onChange={(e) =>
-                          setForm({ ...form, rank: e.target.value })
+                          updateField("rank", e.target.value)
                         }
-                        className="rounded-xl"
+                        className={`rounded-xl ${errors.rank ? "border-red-400 focus-visible:ring-red-400" : ""}`}
                       />
+                      <FieldError msg={errors.rank} />
                     </div>
                     <div>
-                      <SectionLabel>Department</SectionLabel>
+                      <SectionLabel>Department *</SectionLabel>
                       <select
                         value={form.department}
                         onChange={(e) =>
-                          setForm({
-                            ...form,
-                            department: e.target.value as AccountForm["department"],
-                          })
+                          updateField(
+                            "department",
+                            e.target.value as AccountForm["department"]
+                          )
                         }
-                        className="maritime-select"
+                        className={`maritime-select ${errors.department ? "border-red-400 focus-visible:ring-red-400" : ""}`}
                       >
                         <option value="">Select department</option>
                         <option value="deck">Deck</option>
@@ -250,17 +292,19 @@ export default function AccountManagement() {
                         <option value="operations">Operations</option>
                         <option value="administration">Administration</option>
                       </select>
+                      <FieldError msg={errors.department} />
                     </div>
                     <div>
-                      <SectionLabel>Phone</SectionLabel>
+                      <SectionLabel>Phone *</SectionLabel>
                       <Input
                         placeholder="+1 555 000 0000"
                         value={form.phone}
                         onChange={(e) =>
-                          setForm({ ...form, phone: e.target.value })
+                          updateField("phone", e.target.value)
                         }
-                        className="rounded-xl"
+                        className={`rounded-xl ${errors.phone ? "border-red-400 focus-visible:ring-red-400" : ""}`}
                       />
+                      <FieldError msg={errors.phone} />
                     </div>
                   </>
                 )}
@@ -270,7 +314,7 @@ export default function AccountManagement() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setForm(emptyForm(managedRole))}
+                  onClick={resetForm}
                   className="rounded-xl"
                 >
                   Reset
@@ -288,8 +332,8 @@ export default function AccountManagement() {
                   {createUser.isPending
                     ? "Creating..."
                     : isSuperAdmin
-                    ? "Create Admin"
-                    : "Add Crew Member"}
+                      ? "Create Admin"
+                      : "Add Crew Member"}
                 </Button>
               </div>
             </form>
