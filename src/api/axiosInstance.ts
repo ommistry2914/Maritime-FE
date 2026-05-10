@@ -37,12 +37,16 @@ function resolveQueue(success: boolean) {
 // ── Silent force-logout (no page reload, no duplicate toasts) ────
 let sessionExpiredShown = false;
 
-function handleSessionExpired(message = "Session expired. Please log in again.") {
+/**
+ * @param showToast - Pass false when the user was never logged in (initial
+ *   session check on page load). Pass true only when a previously valid
+ *   session has actually expired mid-use.
+ */
+function handleSessionExpired(showToast = true, message = "Session expired. Please log in again.") {
   isRefreshing = false;
   resolveQueue(false);
 
-  // Only show toast once per expiry event
-  if (!sessionExpiredShown) {
+  if (showToast && !sessionExpiredShown) {
     sessionExpiredShown = true;
     toast.error(message);
     // Reset flag after a short delay so next genuine expiry shows again
@@ -67,6 +71,7 @@ axiosInstance.interceptors.response.use(
     const originalRequest = error.config as AxiosRequestConfig & {
       _retry?: boolean;
       skipAuthRefresh?: boolean;
+      _isSessionCheck?: boolean; // set by fetchCurrentUser to suppress toast
     };
 
     const status = error.response?.status;
@@ -109,23 +114,24 @@ axiosInstance.interceptors.response.use(
         return axiosInstance(originalRequest);
 
       } catch {
-        // Refresh failed — force logout silently via Redux
-        handleSessionExpired();
+        // Refresh failed.
+        // If this was a background session-check (page load), the user simply
+        // has no active session — don't show "Session expired" toast.
+        // If this was a real mid-session request, show the toast.
+        const isSessionCheck = originalRequest?._isSessionCheck === true;
+        handleSessionExpired(!isSessionCheck);
         return Promise.reject(error);
       }
     }
 
-    // ── 3. Generic error toasts (skip 401 — already handled) ────
-    // Don't show a toast if this is a 401 that we already handled above
-    // (_retry is set, meaning we already went through the refresh path)
+    // ── 3. Generic error toasts (skip 401/403 — already handled) ─
     if (originalRequest?._retry) {
-      // This is a retried request that still failed — already logged out above
+      // Retried request still failed — already handled above
       return Promise.reject(error);
     }
 
     if (error.response) {
       const message = error.response.data?.message || "Something went wrong.";
-      // Don't show session-expired toast for regular API errors
       if (status !== 401 && status !== 403) {
         toast.error(message);
       }

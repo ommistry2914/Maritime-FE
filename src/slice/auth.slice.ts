@@ -35,10 +35,13 @@ export const fetchCurrentUser = createAsyncThunk<LoginResponse, void, { rejectVa
   "auth/fetchCurrentUser",
   async (_, { rejectWithValue }) => {
     try {
-      // skipAuthRefresh prevents the interceptor from triggering another refresh
-      // when /auth/me itself returns 401 (user not logged in at all)
+      // _isSessionCheck tells the interceptor this is a background page-load check.
+      // If /auth/me → 401 → /auth/refresh → 401, the interceptor will silently log
+      // out without showing "Session expired" toast (user was never logged in).
+      // If the access token is merely expired, the interceptor refreshes it first
+      // and retries /auth/me automatically.
       const response = await axiosInstance.get<ApiResponse<LoginResponse>>("/auth/me", {
-        skipAuthRefresh: true,
+        _isSessionCheck: true,
       } as any);
       return response.data.data;
     } catch (error: any) {
