@@ -102,10 +102,10 @@ axiosInstance.interceptors.response.use(
 
       try {
         // Call /auth/refresh — uses httpOnly cookie automatically
-        await axios.post(
-          `${BASE_URL}/auth/refresh`,
+        await axiosInstance.post(
+          "/auth/refresh",
           {},
-          { withCredentials: true, skipAuthRefresh: true } as any
+          { skipAuthRefresh: true } as any
         );
 
         // Refresh succeeded — retry all queued requests
